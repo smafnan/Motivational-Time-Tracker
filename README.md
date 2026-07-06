@@ -95,6 +95,25 @@ One mode that shows **every calculation together**: the countdown, this month's 
 the live clock, the hour grid, the quarter-hour grid, and all the growth comparisons —
 your entire relationship with time on a single page.
 
+### ✥ Canvas — build the screen you want to stare at
+
+A free-form dashboard: grab widgets from the tray — **clock, focus (pomodoro) timer,
+countdown, month calendar, hour grid, quarter-hour grid, growth cards, the curve** —
+then drag and drop each one anywhere on the board. Add as many as you like (yes, three
+pomodoro timers is allowed), stack them, arrange them; the layout is saved and restored
+exactly as you left it.
+
+### 🎭 Three themes + full screen
+
+- **☀ Paper** — the hand-drawn ink-on-paper light mode
+- **☾ Night** — the same doodle drawn in chalk on a blackboard
+- **◇ Neo** — a modern, futuristic mode: deep space navy, luminous cyan grid, neon
+  magenta accents, glowing sand
+
+The picker lives in the top bar next to the **⛶ full screen** toggle, and your choice is
+remembered. Display type across all themes is set in **Goblock** — big, blocky and
+unapologetic.
+
 ### 📱 Native Android & iOS apps
 
 <div align="center"><img src="docs/mobile.png" width="300" alt="Mobile layout with bottom tab bar" /></div>

@@ -15,12 +15,25 @@ export interface Task {
   createdAt: string // yyyy-mm-dd — days before this don't count against the task
 }
 
+export type WidgetKind =
+  | 'clock' | 'countdown' | 'hours' | 'quarters' | 'month' | 'growth' | 'curve' | 'pomodoro'
+
+export interface CanvasItem {
+  id: string
+  kind: WidgetKind
+  x: number
+  y: number
+  z: number
+}
+
 export interface AppState {
   deadlines: Deadline[]
   primaryId: string | null
   tasks: Task[]
   /** date (yyyy-mm-dd) -> ids of tasks completed that day */
   completions: Record<string, string[]>
+  /** free-form dashboard: widgets and where you dropped them */
+  canvas: CanvasItem[]
 }
 
 // ---------- Dates ----------
@@ -97,12 +110,17 @@ function demoState(): AppState {
   completions[day(0)] = tasks.slice(0, 4).map((t) => t.id) // 4 of 5 so far today
 
   const dl: Deadline = { id: 'demo-dl', title: 'Ship the app', date: day(90), start: day(-25) }
-  return { deadlines: [dl], primaryId: dl.id, tasks, completions }
+  const canvas: CanvasItem[] = [
+    { id: 'demo-w1', kind: 'clock', x: 24, y: 24, z: 1 },
+    { id: 'demo-w2', kind: 'month', x: 420, y: 24, z: 2 },
+    { id: 'demo-w3', kind: 'pomodoro', x: 760, y: 60, z: 3 },
+  ]
+  return { deadlines: [dl], primaryId: dl.id, tasks, completions, canvas }
 }
 
 export function loadState(): AppState {
   if (IS_DEMO) return demoState()
-  const empty: AppState = { deadlines: [], primaryId: null, tasks: [], completions: {} }
+  const empty: AppState = { deadlines: [], primaryId: null, tasks: [], completions: {}, canvas: [] }
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) {
@@ -122,6 +140,7 @@ export function loadState(): AppState {
       primaryId: parsed.primaryId ?? null,
       tasks: parsed.tasks ?? [],
       completions: parsed.completions ?? {},
+      canvas: parsed.canvas ?? [],
     }
   } catch {
     return empty
