@@ -34,6 +34,15 @@ export async function signOut(): Promise<void> {
   await supabase?.auth.signOut()
 }
 
+/** Permanently delete the signed-in account and all its cloud data. */
+export async function deleteAccount(): Promise<string | null> {
+  if (!supabase) return 'Cloud sync is not configured.'
+  const { error } = await supabase.rpc('delete_user')
+  if (error) return error.message
+  await supabase.auth.signOut()
+  return null
+}
+
 /** Subscribe to auth changes; fires immediately with the current user. */
 export function onAuth(cb: (user: User | null) => void): () => void {
   if (!supabase) return () => {}

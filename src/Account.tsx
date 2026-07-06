@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { SyncStatus, cloudEnabled, signIn, signOut, signUp } from './cloud'
+import { SyncStatus, cloudEnabled, deleteAccount, signIn, signOut, signUp } from './cloud'
 
 interface Props {
   user: User | null
@@ -63,10 +63,25 @@ export default function Account({ user, status, onClose }: Props) {
               <button className="btn-ghost" disabled={busy} onClick={() => void signOut()}>
                 Sign out
               </button>
+              <button
+                className="btn-ghost danger"
+                disabled={busy}
+                onClick={async () => {
+                  if (!window.confirm('Delete your account and ALL cloud data permanently? Your local copy on this device stays.')) return
+                  setBusy(true)
+                  const err = await deleteAccount()
+                  setBusy(false)
+                  if (err) setError(err)
+                }}
+              >
+                Delete account
+              </button>
             </div>
+            {error && <p className="form-error">{error}</p>}
             <p className="muted small">
               Every change is backed up automatically. Sign in on any other device and
-              your whole history walks in with you.
+              your whole history walks in with you. Deleting your account removes all
+              cloud data permanently; the copy on this device is kept.
             </p>
           </>
         )}

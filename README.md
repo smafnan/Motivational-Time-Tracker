@@ -215,6 +215,37 @@ developer account.
 
 <br/>
 
+## 🏪 Publishing to the app stores
+
+The projects are store-ready: only INTERNET permission on Android, target SDK 36,
+self-hosted fonts (works offline, no CDN calls), a Content-Security-Policy, RLS-locked
+backend and **in-app account deletion** (required by App Store guideline 5.1.1(v)).
+
+**Google Play**
+1. Create a signing key once:
+   `keytool -genkey -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000`
+   and keep it safe — losing it means losing the app identity.
+2. `cd android && ./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`
+   (configure the keystore in `android/app/build.gradle` `signingConfigs`, or let
+   Android Studio's *Build → Generate Signed App Bundle* wizard do it).
+3. In [Play Console](https://play.google.com/console) ($25 once): create the app,
+   upload the AAB, fill the **Data safety** form (collects: email for auth + user
+   content, encrypted in transit, deletable in-app) and link a **privacy policy** URL.
+4. Each new release: bump `versionCode`/`versionName` in `android/app/build.gradle`.
+
+**Apple App Store**
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/) ($99/yr).
+2. On a Mac: `npx cap open ios` → set your team → **Product → Archive** →
+   *Distribute App* → App Store Connect.
+3. In [App Store Connect](https://appstoreconnect.apple.com): create the app record,
+   fill the **privacy nutrition labels** (email + user content, linked to identity),
+   provide the privacy policy URL, submit for review.
+4. Bump the version/build number in Xcode for each release.
+
+Both stores require a public **privacy policy** page because the app has accounts —
+a simple static page describing what's stored (email, your checklist data), where
+(Supabase), and the in-app deletion option is enough.
+
 ## 🧮 The math, honestly
 
 - **Day score** = tasks completed ÷ tasks that existed that day. Days before a task was

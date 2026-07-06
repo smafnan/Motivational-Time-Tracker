@@ -5,10 +5,41 @@
    outlines, wobbly borders, sticker colors, sand-filled time.
    ============================================================ */
 
+/* All fonts are self-hosted: the app works fully offline and
+   never phones home to a fonts CDN. */
+
 @font-face {
   font-family: 'Goblock';
   src: url('/fonts/GoblockBold.ttf') format('truetype');
   font-weight: 400 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Permanent Marker';
+  src: url('/fonts/PermanentMarker-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Patrick Hand';
+  src: url('/fonts/PatrickHand-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Caveat';
+  src: url('/fonts/Caveat-500.woff2') format('woff2');
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/SpaceGrotesk-400.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -163,7 +194,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 2px 16px;
+  /* safe-area keeps the bar clear of phone notches / status bars */
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 2px 16px;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -883,6 +915,9 @@ body {
 .modal-actions { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
 
 .form-error { color: var(--bad); font-size: 14px; margin-top: 10px; }
+
+.btn-ghost.danger { color: var(--bad); border-color: var(--bad); }
+.btn-ghost.danger:hover { background: rgba(215, 38, 61, 0.08); }
 
 .account-btn.signed-in { color: var(--good); }
 
