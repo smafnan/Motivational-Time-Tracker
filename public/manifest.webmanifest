@@ -1,0 +1,17 @@
+{
+  "name": "Compound — every day counts",
+  "short_name": "Compound",
+  "description": "Motivational countdown timer, daily checklist matrix and compounding productivity analytics.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF7EE",
+  "theme_color": "#FBF7EE",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
