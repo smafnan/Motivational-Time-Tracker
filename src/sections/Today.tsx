@@ -38,7 +38,7 @@ export function ClockHero({ now }: { now: Date }) {
         {clock[1]}
         <span className="clock-sec">{clock[2]}</span>
       </div>
-      <div className="bar">
+      <div className="bar" data-tip={`${dayPct.toFixed(1)}% gone · ${(100 - dayPct).toFixed(1)}% remaining`}>
         <div className="bar-fill" style={{ width: `${dayPct}%` }} />
       </div>
       <div className="bar-meta">
@@ -65,11 +65,17 @@ export function HoursPanel({ now }: { now: Date }) {
       <div className="hgrid">
         {Array.from({ length: 24 }, (_, i) => {
           const cls = i < h ? 'spent' : i === h ? 'today' : 'left'
+          const tip =
+            i === h
+              ? `${String(i).padStart(2, '0')}:00 — ${Math.round(hourFill)}% filled · ${Math.round(100 - hourFill)}% left`
+              : i < h
+                ? `${String(i).padStart(2, '0')}:00 — spent`
+                : `${String(i).padStart(2, '0')}:00 — still yours`
           return (
             <span
               key={i}
               className={`cell ${cls}`}
-              title={`${String(i).padStart(2, '0')}:00${i === h ? ` — ${Math.round(hourFill)}% gone` : ''}`}
+              data-tip={tip}
               style={i === h ? ({ ['--fill' as string]: `${hourFill}%` }) : undefined}
             >
               {i}
@@ -100,11 +106,15 @@ export function QuartersPanel({ now }: { now: Date }) {
           const hh = String(Math.floor(i / 4)).padStart(2, '0')
           const mm = String((i % 4) * 15).padStart(2, '0')
           const cls = i < quarterIdx ? 'spent' : i === quarterIdx ? 'today' : 'left'
+          const tip =
+            i === quarterIdx
+              ? `${hh}:${mm} — ${Math.round(quarterFill)}% filled · ${Math.round(100 - quarterFill)}% left`
+              : `${hh}:${mm} — ${i < quarterIdx ? 'spent' : 'still yours'}`
           return (
             <span
               key={i}
               className={`qcell ${cls}`}
-              title={`${hh}:${mm}${i === quarterIdx ? ` — ${Math.round(quarterFill)}% gone` : ''}`}
+              data-tip={tip}
               style={i === quarterIdx ? ({ ['--fill' as string]: `${quarterFill}%` }) : undefined}
             />
           )

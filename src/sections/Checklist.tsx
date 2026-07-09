@@ -109,7 +109,7 @@ export default function Checklist({ state, setState }: Props) {
                 </div>
               )
             })}
-            <div className="sh-corner right">%</div>
+            <div className="sh-corner right stick-r">%</div>
 
             {/* one row per task */}
             {state.tasks.map((t) => {
@@ -149,7 +149,7 @@ export default function Checklist({ state, setState }: Props) {
                 <div
                   key={i}
                   className={`day-bar ${date === today ? 'is-today' : ''}`}
-                  title={v === null || future ? '' : `${Math.round(v * 100)}%`}
+                  data-tip={v === null || future ? undefined : `Day ${i + 1}: ${Math.round(v * 100)}% productive`}
                 >
                   {!future && v !== null && (
                     <i style={{ height: `${Math.max(v * 100, 4)}%` }} className={v >= 0.7 ? 'hi' : v >= 0.4 ? 'mid' : 'lo'} />
@@ -157,7 +157,7 @@ export default function Checklist({ state, setState }: Props) {
                 </div>
               )
             })}
-            <div className="sh-corner right foot-label">
+            <div className="sh-corner right foot-label stick-r">
               {monthAvg === null ? '—' : `${Math.round(monthAvg * 100)}%`}
             </div>
           </div>
@@ -186,11 +186,13 @@ function TaskRow({
   return (
     <>
       <div className="sh-task">
-        <span className="sh-task-name" title={name}>{name}</span>
+        <span className="sh-task-name" data-tip={name}>{name}</span>
         <button className="icon-btn tiny" title={`Delete ${name}`} onClick={onRemove}>✕</button>
       </div>
       {cells}
-      <div className="sh-pct">{pct === null ? '—' : `${Math.round(pct * 100)}%`}</div>
+      <div className="sh-pct stick-r" data-tip={pct === null ? undefined : `${name}: ${Math.round(pct * 100)}% this month`}>
+        {pct === null ? '—' : `${Math.round(pct * 100)}%`}
+      </div>
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AppState, CanvasItem, WidgetKind, parseDate, uid } from '../lib'
+import { AppState, CanvasItem, FocusSession, WidgetKind, parseDate, uid } from '../lib'
 import { Hero, MonthGrid } from './Countdown'
 import { ClockHero, HoursPanel, QuartersPanel, useNow } from './Today'
 import { ChartPanel, GrowthCards } from './Growth'
@@ -18,16 +18,27 @@ const PALETTE: { kind: WidgetKind; label: string; icon: string }[] = [
   { kind: 'quarters', label: 'Quarters', icon: '▦' },
   { kind: 'growth', label: 'Growth', icon: '◮' },
   { kind: 'curve', label: 'Curve', icon: '∿' },
+  { kind: 'spotify', label: 'Spotify', icon: '♫' },
+  { kind: 'video', label: 'Video', icon: '▶' },
 ]
 
-/** Free-form dashboard: drop any widget anywhere, drag it wherever you want. */
+const DEFAULT_W: Record<WidgetKind, number> = {
+  clock: 350, pomodoro: 280, countdown: 400, month: 300, hours: 460,
+  quarters: 500, growth: 520, curve: 520, spotify: 360, video: 480,
+}
+const MIN_W = 230
+const MAX_W = 860
+
+/** Free-form dashboard: drop widgets, drag them anywhere, resize at the corner. */
 export default function Canvas({ state, setState }: Props) {
   const now = useNow()
   const boardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null)
-  // live position while dragging — committed to (and saved in) state on release
+  const sizeRef = useRef<{ id: string; x0: number; w0: number } | null>(null)
   const [live, setLive] = useState<{ id: string; x: number; y: number } | null>(null)
   const liveRef = useRef<{ id: string; x: number; y: number } | null>(null)
+  const [liveW, setLiveW] = useState<{ id: string; w: number } | null>(null)
+  const liveWRef = useRef<{ id: string; w: number } | null>(null)
 
   const items = state.canvas
   const maxZ = items.reduce((m, i) => Math.max(m, i.z), 0)
@@ -37,11 +48,9 @@ export default function Canvas({ state, setState }: Props) {
       const n = s.canvas.length
       const z = s.canvas.reduce((m, i) => Math.max(m, i.z), 0) + 1
       const item: CanvasItem = {
-        id: uid(),
-        kind,
+        id: uid(), kind, z,
         x: Math.max(0, x ?? 24 + (n % 6) * 48),
         y: Math.max(0, y ?? 24 + (n % 6) * 48),
-        z,
       }
       return { ...s, canvas: [...s.canvas, item] }
     })
@@ -51,11 +60,19 @@ export default function Canvas({ state, setState }: Props) {
     setState((s) => ({ ...s, canvas: s.canvas.filter((i) => i.id !== id) }))
   }
 
-  function bringToFront(id: string) {
+  function patchCfg(id: string, patch: Record<string, string>) {
     setState((s) => ({
       ...s,
-      canvas: s.canvas.map((i) => (i.id === id ? { ...i, z: maxZ + 1 } : i)),
+      canvas: s.canvas.map((i) => (i.id === id ? { ...i, cfg: { ...i.cfg, ...patch } } : i)),
     }))
+  }
+
+  function logFocus(session: FocusSession) {
+    setState((s) => ({ ...s, focus: [session, ...s.focus] }))
+  }
+
+  function bringToFront(id: string) {
+    setState((s) => ({ ...s, canvas: s.canvas.map((i) => (i.id === id ? { ...i, z: maxZ + 1 } : i)) }))
   }
 
   function onDrop(e: React.DragEvent) {
@@ -66,18 +83,14 @@ export default function Canvas({ state, setState }: Props) {
     add(kind, e.clientX - r.left - 60, e.clientY - r.top - 16)
   }
 
+  // ---- move ----
   function onHandleDown(e: React.PointerEvent, item: CanvasItem) {
-    if ((e.target as Element).closest('button')) return // let ✕ clicks through
+    if ((e.target as Element).closest('button')) return
     const r = boardRef.current!.getBoundingClientRect()
     dragRef.current = { id: item.id, dx: e.clientX - r.left - item.x, dy: e.clientY - r.top - item.y }
     bringToFront(item.id)
-    try {
-      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-    } catch {
-      // pointer capture unsupported — move/up on the handle still work
-    }
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId) } catch { /* ok */ }
   }
-
   function onHandleMove(e: React.PointerEvent) {
     const d = dragRef.current
     if (!d) return
@@ -87,19 +100,40 @@ export default function Canvas({ state, setState }: Props) {
     liveRef.current = { id: d.id, x, y }
     setLive(liveRef.current)
   }
-
   function onHandleUp() {
     const d = dragRef.current
     const pos = liveRef.current
     dragRef.current = null
     liveRef.current = null
     if (d && pos && pos.id === d.id) {
-      setState((s) => ({
-        ...s,
-        canvas: s.canvas.map((i) => (i.id === d.id ? { ...i, x: pos.x, y: pos.y } : i)),
-      }))
+      setState((s) => ({ ...s, canvas: s.canvas.map((i) => (i.id === d.id ? { ...i, x: pos.x, y: pos.y } : i)) }))
     }
     setLive(null)
+  }
+
+  // ---- resize ----
+  function onGripDown(e: React.PointerEvent, item: CanvasItem) {
+    e.stopPropagation()
+    sizeRef.current = { id: item.id, x0: e.clientX, w0: item.w ?? DEFAULT_W[item.kind] }
+    bringToFront(item.id)
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId) } catch { /* ok */ }
+  }
+  function onGripMove(e: React.PointerEvent) {
+    const s = sizeRef.current
+    if (!s) return
+    const w = Math.min(MAX_W, Math.max(MIN_W, s.w0 + (e.clientX - s.x0)))
+    liveWRef.current = { id: s.id, w }
+    setLiveW(liveWRef.current)
+  }
+  function onGripUp() {
+    const s = sizeRef.current
+    const lw = liveWRef.current
+    sizeRef.current = null
+    liveWRef.current = null
+    if (s && lw && lw.id === s.id) {
+      setState((st) => ({ ...st, canvas: st.canvas.map((i) => (i.id === s.id ? { ...i, w: lw.w } : i)) }))
+    }
+    setLiveW(null)
   }
 
   return (
@@ -107,7 +141,7 @@ export default function Canvas({ state, setState }: Props) {
       <div className="panel pal-panel">
         <div className="panel-head">
           <h2>Canvas</h2>
-          <div className="panel-stat">click a widget to add it — then drag it anywhere</div>
+          <div className="panel-stat">click to add · drag to place · pull the corner to resize</div>
         </div>
         <div className="palette">
           {PALETTE.map((p) => (
@@ -123,23 +157,14 @@ export default function Canvas({ state, setState }: Props) {
             </button>
           ))}
           {items.length > 0 && (
-            <button
-              className="btn-ghost"
-              onClick={() => setState((s) => ({ ...s, canvas: [] }))}
-              title="Remove all widgets"
-            >
+            <button className="btn-ghost" onClick={() => setState((s) => ({ ...s, canvas: [] }))}>
               clear all
             </button>
           )}
         </div>
       </div>
 
-      <div
-        className="board"
-        ref={boardRef}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-      >
+      <div className="board" ref={boardRef} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
         {items.length === 0 && (
           <div className="board-hint">
             your space is empty — grab a widget from the tray above
@@ -149,11 +174,12 @@ export default function Canvas({ state, setState }: Props) {
         )}
         {items.map((item) => {
           const pos = live && live.id === item.id ? live : item
+          const width = liveW && liveW.id === item.id ? liveW.w : item.w ?? DEFAULT_W[item.kind]
           return (
             <div
               key={item.id}
               className={`widget widget-${item.kind}`}
-              style={{ left: pos.x, top: pos.y, zIndex: item.z }}
+              style={{ left: pos.x, top: pos.y, zIndex: item.z, width }}
             >
               <div
                 className="widget-head"
@@ -163,15 +189,27 @@ export default function Canvas({ state, setState }: Props) {
                 onPointerCancel={onHandleUp}
               >
                 <span className="widget-grip" aria-hidden>⣿</span>
-                <span className="widget-title">
-                  {PALETTE.find((p) => p.kind === item.kind)?.label}
-                </span>
-                <button className="icon-btn tiny" title="Remove" onClick={() => remove(item.id)}>
-                  ✕
-                </button>
+                <span className="widget-title">{PALETTE.find((p) => p.kind === item.kind)?.label}</span>
+                <button className="icon-btn tiny" title="Remove" onClick={() => remove(item.id)}>✕</button>
               </div>
               <div className="widget-body">
-                <Widget kind={item.kind} state={state} now={now} />
+                <Widget
+                  item={item}
+                  state={state}
+                  now={now}
+                  onCfg={(patch) => patchCfg(item.id, patch)}
+                  onFocusDone={logFocus}
+                />
+              </div>
+              <div
+                className="widget-resize"
+                data-tip="Drag to resize"
+                onPointerDown={(e) => onGripDown(e, item)}
+                onPointerMove={onGripMove}
+                onPointerUp={onGripUp}
+                onPointerCancel={onGripUp}
+              >
+                ◢
               </div>
             </div>
           )
@@ -181,15 +219,23 @@ export default function Canvas({ state, setState }: Props) {
   )
 }
 
-function Widget({ kind, state, now }: { kind: WidgetKind; state: AppState; now: Date }) {
+interface WidgetProps {
+  item: CanvasItem
+  state: AppState
+  now: Date
+  onCfg: (patch: Record<string, string>) => void
+  onFocusDone: (s: FocusSession) => void
+}
+
+function Widget({ item, state, now, onCfg, onFocusDone }: WidgetProps) {
   const primary =
     state.deadlines.find((d) => d.id === state.primaryId) ?? state.deadlines[0] ?? null
 
-  switch (kind) {
+  switch (item.kind) {
     case 'clock':
       return <ClockHero now={now} />
     case 'pomodoro':
-      return <Pomodoro />
+      return <Pomodoro task={item.cfg?.task ?? ''} onTask={(t) => onCfg({ task: t })} onDone={onFocusDone} />
     case 'countdown':
       return primary
         ? <Hero deadline={primary} now={now} />
@@ -207,14 +253,23 @@ function Widget({ kind, state, now }: { kind: WidgetKind; state: AppState; now: 
       return <GrowthCards state={state} />
     case 'curve':
       return <ChartPanel state={state} />
+    case 'spotify':
+      return <SpotifyWidget url={item.cfg?.url ?? ''} onUrl={(u) => onCfg({ url: u })} />
+    case 'video':
+      return <VideoWidget url={item.cfg?.url ?? ''} onUrl={(u) => onCfg({ url: u })} />
   }
 }
 
-/** A simple focus timer: pick a block, start, stay until the sand runs out. */
-function Pomodoro() {
+/** Focus timer with a named task; completed blocks are logged to your account. */
+function Pomodoro({ task, onTask, onDone }: {
+  task: string
+  onTask: (t: string) => void
+  onDone: (s: FocusSession) => void
+}) {
   const [total, setTotal] = useState(25 * 60)
   const [left, setLeft] = useState(25 * 60)
   const [running, setRunning] = useState(false)
+  const loggedRef = useRef(false)
 
   useEffect(() => {
     if (!running) return
@@ -230,6 +285,20 @@ function Pomodoro() {
     return () => clearInterval(t)
   }, [running])
 
+  // log exactly once when the sand runs out
+  useEffect(() => {
+    if (left === 0 && !loggedRef.current) {
+      loggedRef.current = true
+      onDone({
+        id: uid(),
+        task: task.trim() || 'Untitled focus',
+        minutes: Math.round(total / 60),
+        endedAt: new Date().toISOString(),
+      })
+    }
+    if (left > 0) loggedRef.current = false
+  }, [left]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function reset(mins: number) {
     setTotal(mins * 60)
     setLeft(mins * 60)
@@ -242,8 +311,16 @@ function Pomodoro() {
 
   return (
     <div className="pomodoro">
+      <input
+        className="pomo-task"
+        placeholder="What are you focusing on?"
+        value={task}
+        onChange={(e) => onTask(e.target.value)}
+      />
       <div className={`pomo-time ${left === 0 ? 'done' : ''}`}>{mm}:{ss}</div>
-      <div className="bar"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
+      <div className="bar" data-tip={`${Math.round(pct)}% done · ${Math.round(100 - pct)}% to go`}>
+        <div className="bar-fill" style={{ width: `${pct}%` }} />
+      </div>
       <div className="pomo-controls">
         <button className="btn-accent" onClick={() => (left === 0 ? reset(total / 60) : setRunning(!running))}>
           {left === 0 ? 'again' : running ? 'pause' : 'start'}
@@ -252,7 +329,109 @@ function Pomodoro() {
           <button key={m} className="btn-ghost" onClick={() => reset(m)}>{m}m</button>
         ))}
       </div>
-      {left === 0 && <p className="muted small">block done — tick something off ✓</p>}
+      {left === 0 && <p className="muted small">logged to your focus history ✓</p>}
     </div>
+  )
+}
+
+/** Optional Spotify embed: paste any track / playlist / album link. */
+function SpotifyWidget({ url, onUrl }: { url: string; onUrl: (u: string) => void }) {
+  const [draft, setDraft] = useState('')
+  const m = url.match(/open\.spotify\.com\/(track|playlist|album|episode|artist)\/([A-Za-z0-9]+)/)
+
+  if (!m) {
+    return (
+      <form
+        className="media-setup"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (draft.trim()) onUrl(draft.trim())
+        }}
+      >
+        <p className="muted small">Paste a Spotify track, playlist or album link — the player shows the art and what's playing.</p>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="https://open.spotify.com/track/…" />
+        <button type="submit" className="btn-accent">Connect</button>
+      </form>
+    )
+  }
+
+  const kind = m[1]
+  const h = kind === 'track' || kind === 'episode' ? 152 : 352
+  return (
+    <div className="media-embed">
+      <iframe
+        title="Spotify player"
+        src={`https://open.spotify.com/embed/${kind}/${m[2]}?theme=0`}
+        width="100%"
+        height={h}
+        frameBorder="0"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"
+      />
+      <button className="chip-btn" onClick={() => onUrl('')}>change</button>
+    </div>
+  )
+}
+
+/** Optional video: a YouTube link (persisted) or a local file (this session). */
+function VideoWidget({ url, onUrl }: { url: string; onUrl: (u: string) => void }) {
+  const [draft, setDraft] = useState('')
+  const [localSrc, setLocalSrc] = useState<string | null>(null)
+
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,20})/)
+
+  if (localSrc) {
+    return (
+      <div className="media-embed">
+        <video src={localSrc} controls style={{ width: '100%', borderRadius: 10 }} />
+        <button className="chip-btn" onClick={() => setLocalSrc(null)}>change</button>
+        <p className="muted small">Local videos play this session only — they aren't uploaded or stored.</p>
+      </div>
+    )
+  }
+
+  if (yt) {
+    return (
+      <div className="media-embed">
+        <div className="video-frame">
+          <iframe
+            title="YouTube player"
+            src={`https://www.youtube-nocookie.com/embed/${yt[1]}`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+        <button className="chip-btn" onClick={() => onUrl('')}>change</button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="media-setup"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (draft.trim()) onUrl(draft.trim())
+      }}
+    >
+      <p className="muted small">Embed a study-with-me or any YouTube video — or play a file from this device.</p>
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="https://youtube.com/watch?v=…" />
+      <div className="pomo-controls">
+        <button type="submit" className="btn-accent">Embed</button>
+        <label className="btn-ghost file-btn">
+          local file
+          <input
+            type="file"
+            accept="video/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) setLocalSrc(URL.createObjectURL(f))
+            }}
+          />
+        </label>
+      </div>
+    </form>
   )
 }

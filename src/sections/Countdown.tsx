@@ -184,7 +184,7 @@ export function Hero({ deadline, now }: { deadline: Deadline; now: Date }) {
         {' · '}
         {gone} of {total} days spent
       </p>
-      <div className="bar">
+      <div className="bar" data-tip={`${gone} days spent · ${total - gone} days remain`}>
         <div className="bar-fill" style={{ width: `${pct}%` }} />
       </div>
       <div className="bar-meta">
@@ -258,11 +258,17 @@ export function MonthGrid({
       else if (date < today) cls = 'spent'
       else cls = 'left'
     }
+    const tip =
+      cls === 'off'
+        ? undefined
+        : cls === 'today'
+          ? `${MONTHS[month]} ${d} — ${Math.round(dayFill)}% filled · ${Math.round(100 - dayFill)}% left`
+          : `${MONTHS[month]} ${d}, ${year} — ${cls === 'spent' ? 'spent' : 'remaining'}`
     cells.push(
       <span
         key={d}
         className={`cell ${cls}`}
-        title={`${MONTHS[month]} ${d}, ${year}${cls === 'today' ? ` — ${Math.round(dayFill)}% of today gone` : ''}`}
+        data-tip={tip}
         style={cls === 'today' ? ({ ['--fill' as string]: `${dayFill}%` }) : undefined}
       >
         {cls === 'off' ? '' : d}
@@ -282,7 +288,7 @@ export function MonthGrid({
         ))}
       </div>
       <div className="mgrid">{cells}</div>
-      <div className="msand" title={`${Math.round(monthFill)}% of ${MONTHS[month]} gone`}>
+      <div className="msand" data-tip={`${MONTHS[month]}: ${Math.round(monthFill)}% gone · ${Math.round(100 - monthFill)}% left`}>
         <i style={{ width: `${monthFill}%` }} />
       </div>
     </div>

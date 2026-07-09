@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { AppState, IS_DEMO, loadState, localUpdatedAt, saveState } from './lib'
 import { SyncStatus, cloudEnabled, onAuth, pullState, pushState } from './cloud'
+import { FONTS, loadPref, savePref } from './prefs'
+import Backdrop, { BgKind } from './Backdrop'
 import Account from './Account'
 import Countdown from './sections/Countdown'
 import Today from './sections/Today'
@@ -9,8 +11,9 @@ import Checklist from './sections/Checklist'
 import Growth from './sections/Growth'
 import Overview from './sections/Overview'
 import Canvas from './sections/Canvas'
+import Profile from './sections/Profile'
 
-type Tab = 'countdown' | 'today' | 'checklist' | 'growth' | 'all' | 'canvas'
+type Tab = 'countdown' | 'today' | 'checklist' | 'growth' | 'all' | 'canvas' | 'you'
 type Theme = 'paper' | 'night' | 'neo'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -20,6 +23,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'growth', label: 'Growth', icon: '◮' },
   { id: 'all', label: 'All', icon: '✦' },
   { id: 'canvas', label: 'Canvas', icon: '✥' },
+  { id: 'you', label: 'You', icon: '◉' },
 ]
 
 const THEMES: { id: Theme; icon: string; title: string }[] = [
@@ -42,6 +46,8 @@ export default function App() {
   const [state, setState] = useState<AppState>(loadState)
   const [tab, setTab] = useState<Tab>(initialTab)
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [font, setFont] = useState(() => loadPref('font', 'goblock'))
+  const [bg, setBg] = useState<BgKind>(() => loadPref('bg', 'none') as BgKind)
   const [fullscreen, setFullscreen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [sync, setSync] = useState<SyncStatus>(cloudEnabled ? 'signed-out' : 'off')
@@ -80,6 +86,17 @@ export default function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('compound.theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    const f = FONTS.find((x) => x.id === font) ?? FONTS[0]
+    document.documentElement.style.setProperty('--display', f.family)
+    savePref('font', f.id)
+  }, [font])
+
+  useEffect(() => {
+    document.documentElement.dataset.bg = bg
+    savePref('bg', bg)
+  }, [bg])
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement)
@@ -175,15 +192,68 @@ export default function App() {
       )}
 
       <main className="content">
-        {tab === 'countdown' && <Countdown state={state} setState={setState} />}
-        {tab === 'today' && <Today />}
-        {tab === 'checklist' && <Checklist state={state} setState={setState} />}
-        {tab === 'growth' && <Growth state={state} />}
-        {tab === 'all' && <Overview state={state} />}
-        {tab === 'canvas' && <Canvas state={state} setState={setState} />}
+        <div className="view" key={tab}>
+          {tab === 'countdown' && <Countdown state={state} setState={setState} />}
+          {tab === 'today' && <Today />}
+          {tab === 'checklist' && <Checklist state={state} setState={setState} />}
+          {tab === 'growth' && <Growth state={state} />}
+          {tab === 'all' && <Overview state={state} />}
+          {tab === 'canvas' && <Canvas state={state} setState={setState} />}
+          {tab === 'you' && (
+            <Profile
+              state={state}
+              setState={setState}
+              user={user}
+              sync={sync}
+              font={font}
+              setFont={setFont}
+              bg={bg}
+              setBg={setBg}
+              theme={theme}
+              setTheme={(t) => setTheme(t as Theme)}
+            />
+          )}
+        </div>
       </main>
 
       <footer className="foot">every day counts !</footer>
+      <Backdrop kind={bg} />
+      <TipLayer />
+    </div>
+  )
+}
+
+/** One global tooltip that follows any element carrying data-tip —
+ *  escapes overflow clipping and works across every widget. */
+function TipLayer() {
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    const over = (e: PointerEvent) => {
+      const el = (e.target as Element).closest?.('[data-tip]') as HTMLElement | null
+      if (!el || !el.dataset.tip) {
+        setTip(null)
+        return
+      }
+      const r = el.getBoundingClientRect()
+      const x = Math.min(Math.max(r.left + r.width / 2, 100), window.innerWidth - 100)
+      setTip({ text: el.dataset.tip, x, y: Math.max(r.top, 44) })
+    }
+    const clear = () => setTip(null)
+    window.addEventListener('pointerover', over)
+    window.addEventListener('pointerdown', clear)
+    window.addEventListener('scroll', clear, true)
+    return () => {
+      window.removeEventListener('pointerover', over)
+      window.removeEventListener('pointerdown', clear)
+      window.removeEventListener('scroll', clear, true)
+    }
+  }, [])
+
+  if (!tip) return null
+  return (
+    <div className="tipfly" style={{ left: tip.x, top: tip.y }}>
+      {tip.text}
     </div>
   )
 }

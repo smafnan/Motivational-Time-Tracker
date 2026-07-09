@@ -17,6 +17,7 @@ export interface Task {
 
 export type WidgetKind =
   | 'clock' | 'countdown' | 'hours' | 'quarters' | 'month' | 'growth' | 'curve' | 'pomodoro'
+  | 'spotify' | 'video'
 
 export interface CanvasItem {
   id: string
@@ -24,6 +25,24 @@ export interface CanvasItem {
   x: number
   y: number
   z: number
+  /** user-resized width in px (falls back to the kind's default) */
+  w?: number
+  /** per-widget config: spotify/video URLs, focus-timer task, … */
+  cfg?: Record<string, string>
+}
+
+/** One completed focus-timer session. */
+export interface FocusSession {
+  id: string
+  task: string
+  minutes: number
+  endedAt: string // ISO
+}
+
+export interface Profile {
+  name: string
+  goal: string
+  joined: string // yyyy-mm-dd
 }
 
 export interface AppState {
@@ -34,6 +53,9 @@ export interface AppState {
   completions: Record<string, string[]>
   /** free-form dashboard: widgets and where you dropped them */
   canvas: CanvasItem[]
+  /** completed focus-timer sessions */
+  focus: FocusSession[]
+  profile: Profile
   /** last save time (ISO) — used to decide local vs cloud on login */
   updatedAt?: string
 }
@@ -46,6 +68,8 @@ export function normalizeState(parsed: Partial<AppState> | null | undefined): Ap
     tasks: parsed?.tasks ?? [],
     completions: parsed?.completions ?? {},
     canvas: parsed?.canvas ?? [],
+    focus: parsed?.focus ?? [],
+    profile: parsed?.profile ?? { name: '', goal: '', joined: todayStr() },
     updatedAt: parsed?.updatedAt,
   }
 }
@@ -129,12 +153,19 @@ function demoState(): AppState {
     { id: 'demo-w2', kind: 'month', x: 420, y: 24, z: 2 },
     { id: 'demo-w3', kind: 'pomodoro', x: 760, y: 60, z: 3 },
   ]
-  return { deadlines: [dl], primaryId: dl.id, tasks, completions, canvas }
+  const focus: FocusSession[] = [
+    { id: 'demo-f1', task: 'Deep work — landing page', minutes: 25, endedAt: new Date(Date.now() - 3 * 3600_000).toISOString() },
+    { id: 'demo-f2', task: 'Read: Atomic Habits', minutes: 15, endedAt: new Date(Date.now() - 26 * 3600_000).toISOString() },
+  ]
+  return normalizeState({
+    deadlines: [dl], primaryId: dl.id, tasks, completions, canvas, focus,
+    profile: { name: 'Demo Pilgrim', goal: 'Ship the app before winter', joined: day(-34) },
+  })
 }
 
 export function loadState(): AppState {
   if (IS_DEMO) return demoState()
-  const empty: AppState = { deadlines: [], primaryId: null, tasks: [], completions: {}, canvas: [] }
+  const empty: AppState = normalizeState(null)
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) {
@@ -289,4 +320,80 @@ export function compoundSeries(state: AppState, days: number, now: Date): number
 export function trailingAvg(state: AppState, days: number, now: Date): number | null {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   return avgScore(state, addDays(today, -(days - 1)), today)
+}
+
+// ---------- Dashboard analytics ----------
+
+export interface TaskStat {
+  id: string
+  name: string
+  /** completion rate over the window (null = task newer than window) */
+  pct: number | null
+  /** consecutive days done, ending today or yesterday */
+  streak: number
+}
+
+export function taskStats(state: AppState, days: number, now: Date): TaskStat[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return state.tasks.map((t) => {
+    let done = 0
+    let countable = 0
+    for (let i = 0; i < days; i++) {
+      const date = fmtDate(addDays(today, -i))
+      if (date < t.createdAt) continue
+      countable++
+      if ((state.completions[date] ?? []).includes(t.id)) done++
+    }
+    // streak: allow it to survive an unticked today
+    let streak = 0
+    let cursor = (state.completions[fmtDate(today)] ?? []).includes(t.id) ? 0 : 1
+    for (; ; cursor++) {
+      const date = fmtDate(addDays(today, -cursor))
+      if (date < t.createdAt) break
+      if ((state.completions[date] ?? []).includes(t.id)) streak++
+      else break
+    }
+    return { id: t.id, name: t.name, pct: countable === 0 ? null : done / countable, streak }
+  })
+}
+
+/** Consecutive days (ending today/yesterday) with at least one tick. */
+export function currentStreak(state: AppState, now: Date): number {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const has = (d: Date) => (state.completions[fmtDate(d)] ?? []).length > 0
+  let streak = 0
+  let i = has(today) ? 0 : 1
+  for (; i < 3650; i++) {
+    if (has(addDays(today, -i))) streak++
+    else break
+  }
+  return streak
+}
+
+export function totalTicks(state: AppState): number {
+  return Object.values(state.completions).reduce((n, arr) => n + arr.length, 0)
+}
+
+/** Weekday vs weekend average score over the trailing window. */
+export function weekSplit(state: AppState, days: number, now: Date) {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let wd = 0, wdN = 0, we = 0, weN = 0
+  for (let i = 0; i < days; i++) {
+    const d = addDays(today, -i)
+    const s = dayScore(state, fmtDate(d))
+    if (s === null) continue
+    if (d.getDay() === 0 || d.getDay() === 6) { we += s; weN++ } else { wd += s; wdN++ }
+  }
+  return {
+    weekday: wdN ? wd / wdN : null,
+    weekend: weN ? we / weN : null,
+  }
+}
+
+/** Focus minutes in the trailing window. */
+export function focusMinutes(state: AppState, days: number, now: Date): number {
+  const cutoff = now.getTime() - days * 86_400_000
+  return state.focus
+    .filter((f) => new Date(f.endedAt).getTime() >= cutoff)
+    .reduce((n, f) => n + f.minutes, 0)
 }
