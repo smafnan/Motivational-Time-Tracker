@@ -3,8 +3,10 @@ import type { User } from '@supabase/supabase-js'
 import { AppState } from './lib'
 import {
   SyncStatus, cloudEnabled, deleteAccount, sendMagicLink, sendPasswordReset,
-  signIn, signOut, signOutEverywhere, signUp, updateEmail, updatePassword,
+  signIn, signInWithProvider, signOut, signOutEverywhere, signUp,
+  updateEmail, updatePassword,
 } from './cloud'
+import Security from './Security'
 import { t } from './i18n'
 
 interface Props {
@@ -126,6 +128,19 @@ function AuthForm({ onClose, setState }: Props) {
         </button>
       </form>
 
+      <div className="auth-divider"><span>or</span></div>
+      <div className="social-row">
+        <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('google')}>
+          <span className="social-g">G</span> Google
+        </button>
+        <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('apple')}>
+           Apple
+        </button>
+        <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('github')}>
+          GitHub
+        </button>
+      </div>
+
       {mode === 'in' && (
         <div className="auth-alt">
           <button
@@ -173,6 +188,7 @@ function AuthForm({ onClose, setState }: Props) {
 /* ---------------- account info (signed in) ---------------- */
 
 function AccountInfo({ user, status, state, setState, onClose }: Props) {
+  const [view, setView] = useState<'profile' | 'security'>('profile')
   const [email, setEmail] = useState(user?.email ?? '')
   const [pw1, setPw1] = useState('')
   const [busy, setBusy] = useState(false)
@@ -207,6 +223,19 @@ function AccountInfo({ user, status, state, setState, onClose }: Props) {
       <ModalHead title={t('yourAccount')} onClose={onClose} />
       <p className="muted small acc-status">{STATUS_TEXT[status]}</p>
 
+      <div className="auth-tabs">
+        <button className={`auth-tab ${view === 'profile' ? 'on' : ''}`} onClick={() => setView('profile')}>
+          {t('profile')}
+        </button>
+        <button className={`auth-tab ${view === 'security' ? 'on' : ''}`} onClick={() => setView('security')}>
+          {t('security')}
+        </button>
+      </div>
+
+      {view === 'security' && <Security />}
+
+      {view === 'profile' && (
+      <>
       <div className="acc-fields">
         <label className="acc-row">
           <span>{t('name')}</span>
@@ -296,6 +325,8 @@ function AccountInfo({ user, status, state, setState, onClose }: Props) {
         Name and phone save instantly. Everything you do here is backed up to your account
         automatically.
       </p>
+      </>
+      )}
     </>
   )
 }

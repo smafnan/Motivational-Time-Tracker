@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { AppState, IS_DEMO, loadState, localUpdatedAt, saveState } from './lib'
-import { SyncStatus, cloudEnabled, onAuth, pullState, pushState, subscribeToState } from './cloud'
+import { SyncStatus, cloudEnabled, onAuth, pullState, pushState, subscribeToState, touchDevice } from './cloud'
 import { loadPref, resolveFontFamily, savePref } from './prefs'
 import FontPicker from './FontPicker'
 import { LANGS, LangId, applyLang, langDir, t } from './i18n'
@@ -124,12 +124,15 @@ export default function App() {
     const onVis = () => {
       if (!document.hidden) pull()
     }
+    void touchDevice() // register this device in the account's session list
     const iv = setInterval(pull, 30_000)
+    const dev = setInterval(() => void touchDevice(), 5 * 60_000) // keep "last active" fresh
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('focus', onVis)
     const unsub = subscribeToState(user.id, adoptRemote)
     return () => {
       clearInterval(iv)
+      clearInterval(dev)
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('focus', onVis)
       unsub()

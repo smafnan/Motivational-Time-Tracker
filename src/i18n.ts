@@ -16,6 +16,7 @@ export const LANGS: { id: LangId; label: string; dir: 'ltr' | 'rtl' }[] = [
 type Dict = Record<string, string>
 
 const EN: Dict = {
+  profile: 'Profile', security: 'Security',
   magicLink: 'Email me a login link', forgotPassword: 'Forgot password?', logOutAll: 'Log out everywhere',
   countdown: 'Countdown', today: 'Today', checklist: 'Checklist', growth: 'Growth',
   all: 'All', canvas: 'Canvas', you: 'You',
@@ -46,6 +47,7 @@ const EN: Dict = {
 }
 
 const AR: Dict = {
+  profile: 'الملف', security: 'الأمان',
   magicLink: 'أرسل رابط دخول إلى بريدي', forgotPassword: 'نسيت كلمة المرور؟', logOutAll: 'تسجيل الخروج من كل الأجهزة',
   countdown: 'العدّ التنازلي', today: 'اليوم', checklist: 'القائمة', growth: 'النموّ',
   all: 'الكل', canvas: 'اللوحة', you: 'أنت',
@@ -76,6 +78,7 @@ const AR: Dict = {
 }
 
 const FR: Dict = {
+  profile: 'Profil', security: 'Sécurité',
   magicLink: 'Recevoir un lien de connexion', forgotPassword: 'Mot de passe oublié ?', logOutAll: 'Se déconnecter partout',
   countdown: 'Compte à rebours', today: "Aujourd'hui", checklist: 'Liste', growth: 'Progrès',
   all: 'Tout', canvas: 'Toile', you: 'Vous',
@@ -106,6 +109,7 @@ const FR: Dict = {
 }
 
 const DE: Dict = {
+  profile: 'Profil', security: 'Sicherheit',
   magicLink: 'Login-Link per E-Mail', forgotPassword: 'Passwort vergessen?', logOutAll: 'Überall abmelden',
   countdown: 'Countdown', today: 'Heute', checklist: 'Checkliste', growth: 'Wachstum',
   all: 'Alles', canvas: 'Leinwand', you: 'Du',
@@ -136,6 +140,7 @@ const DE: Dict = {
 }
 
 const ES: Dict = {
+  profile: 'Perfil', security: 'Seguridad',
   magicLink: 'Enviarme un enlace de acceso', forgotPassword: '¿Olvidaste tu contraseña?', logOutAll: 'Cerrar sesión en todas partes',
   countdown: 'Cuenta atrás', today: 'Hoy', checklist: 'Lista', growth: 'Crecimiento',
   all: 'Todo', canvas: 'Lienzo', you: 'Tú',
@@ -166,6 +171,7 @@ const ES: Dict = {
 }
 
 const HI: Dict = {
+  profile: 'प्रोफ़ाइल', security: 'सुरक्षा',
   magicLink: 'लॉगिन लिंक ईमेल करें', forgotPassword: 'पासवर्ड भूल गए?', logOutAll: 'सभी डिवाइस से लॉग आउट',
   countdown: 'उलटी गिनती', today: 'आज', checklist: 'चेकलिस्ट', growth: 'वृद्धि',
   all: 'सब', canvas: 'कैनवास', you: 'आप',
