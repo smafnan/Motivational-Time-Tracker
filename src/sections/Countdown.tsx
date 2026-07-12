@@ -4,6 +4,18 @@ import {
 } from '../lib'
 import { t } from '../i18n'
 
+/** Open the native calendar dropdown when the field is clicked anywhere,
+ *  not only on the small icon. showPicker needs a user gesture and isn't
+ *  in every browser, so it's guarded. */
+function openPicker(e: React.MouseEvent<HTMLInputElement>) {
+  const el = e.currentTarget as HTMLInputElement & { showPicker?: () => void }
+  try {
+    el.showPicker?.()
+  } catch {
+    /* not supported / not user-activated — the field still works normally */
+  }
+}
+
 interface Props {
   state: AppState
   setState: React.Dispatch<React.SetStateAction<AppState>>
@@ -95,6 +107,7 @@ export default function Countdown({ state, setState }: Props) {
                       className="dl-date"
                       value={d.start}
                       max={d.date}
+                      onClick={openPicker}
                       onChange={(e) => patch(d.id, 'start', e.target.value)}
                       aria-label={`Change start date for ${d.title}`}
                     />
@@ -106,6 +119,7 @@ export default function Countdown({ state, setState }: Props) {
                       className="dl-date"
                       value={d.date}
                       min={d.start}
+                      onClick={openPicker}
                       onChange={(e) => patch(d.id, 'date', e.target.value)}
                       aria-label={`Change deadline date for ${d.title}`}
                     />
@@ -131,6 +145,7 @@ export default function Countdown({ state, setState }: Props) {
               type="date"
               value={start}
               max={date || undefined}
+              onClick={openPicker}
               onChange={(e) => setStart(e.target.value)}
             />
           </label>
@@ -141,6 +156,7 @@ export default function Countdown({ state, setState }: Props) {
               required
               value={date}
               min={start || undefined}
+              onClick={openPicker}
               onChange={(e) => setDate(e.target.value)}
             />
           </label>

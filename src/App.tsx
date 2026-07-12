@@ -327,8 +327,28 @@ function StyleQuick({ theme, setTheme, font, setFont, bg, setBg }: {
   bg: BgKind; setBg: (b: BgKind) => void
 }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    // defer so the click that opened the menu isn't the one that closes it
+    const id = setTimeout(() => window.addEventListener('pointerdown', onDown), 0)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(id)
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <div className="style-quick">
+    <div className="style-quick" ref={ref}>
       <button
         className={`style-btn ${open ? 'open' : ''}`}
         onClick={() => setOpen((o) => !o)}

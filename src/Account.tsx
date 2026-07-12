@@ -130,14 +130,8 @@ function AuthForm({ onClose, setState }: Props) {
 
       <div className="auth-divider"><span>or</span></div>
       <div className="social-row">
-        <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('google')}>
-          <span className="social-g">G</span> Google
-        </button>
-        <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('apple')}>
-           Apple
-        </button>
         <button className="social-btn" disabled={busy} onClick={() => void signInWithProvider('github')}>
-          GitHub
+           Continue with GitHub
         </button>
       </div>
 
