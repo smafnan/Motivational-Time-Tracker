@@ -75,6 +75,21 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [sync, setSync] = useState<SyncStatus>(cloudEnabled ? 'signed-out' : 'off')
   const [showAccount, setShowAccount] = useState(false)
+  const [verified, setVerified] = useState(false)
+
+  // Landing here from an email-verification link (?verified=1): the
+  // Supabase client has already consumed the tokens in the URL hash and
+  // logged the user in — greet them and clean the address bar.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (!params.get('verified')) return
+    setVerified(true)
+    params.delete('verified')
+    const q = params.toString()
+    history.replaceState(null, '', location.pathname + (q ? `?${q}` : ''))
+    const id = setTimeout(() => setVerified(false), 7000)
+    return () => clearTimeout(id)
+  }, [])
   const stateRef = useRef(state)
   stateRef.current = state
   // set while adopting a merged copy, so the save effect writes it
@@ -320,6 +335,12 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {verified && (
+        <div className="toast" role="status">
+          ✓ Email verified — {user ? 'you are logged in. Welcome!' : 'you can log in now.'}
+        </div>
+      )}
 
       <footer className="foot">{t('everyDayCounts')}</footer>
       <Backdrop kind={bg} />

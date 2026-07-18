@@ -45,6 +45,7 @@ function AuthForm({ onClose, setState }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [exists, setExists] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,20 +53,28 @@ function AuthForm({ onClose, setState }: Props) {
     setBusy(true)
     setError(null)
     setNotice(null)
+    setExists(false)
     if (mode === 'in') {
       const err = await signIn(email, password)
       if (err) setError(friendly(err))
       else onClose()
     } else {
-      const err = await signUp(email, password)
-      if (err) setError(friendly(err))
-      else {
+      const res = await signUp(email, password)
+      if (res.status === 'exists') {
+        setExists(true)
+      } else if (res.status === 'error') {
+        setError(friendly(res.message))
+      } else {
         if (name.trim()) {
           setState((s) => ({ ...s, profile: { ...s.profile, name: name.trim() } }))
         }
-        const auto = await signIn(email, password)
-        if (!auto) onClose()
-        else setNotice('Account created! Check your email to confirm it, then log in.')
+        if (res.needsConfirm) {
+          setNotice(
+            'Account created! We sent you a verification email — the link brings you straight back here, logged in.',
+          )
+        } else {
+          onClose() // confirmations are off — the session is already live
+        }
       }
     }
     setBusy(false)
@@ -88,10 +97,10 @@ function AuthForm({ onClose, setState }: Props) {
       <ModalHead title={mode === 'in' ? t('logIn') : t('createAccount')} onClose={onClose} />
 
       <div className="auth-tabs">
-        <button className={`auth-tab ${mode === 'in' ? 'on' : ''}`} onClick={() => { setMode('in'); setError(null) }}>
+        <button className={`auth-tab ${mode === 'in' ? 'on' : ''}`} onClick={() => { setMode('in'); setError(null); setExists(false) }}>
           {t('logIn')}
         </button>
-        <button className={`auth-tab ${mode === 'up' ? 'on' : ''}`} onClick={() => { setMode('up'); setError(null) }}>
+        <button className={`auth-tab ${mode === 'up' ? 'on' : ''}`} onClick={() => { setMode('up'); setError(null); setExists(false) }}>
           {t('createAccount')}
         </button>
       </div>
@@ -168,6 +177,21 @@ function AuthForm({ onClose, setState }: Props) {
         </div>
       )}
 
+      {exists && (
+        <div className="form-error exists-note">
+          <p>An account with this email already exists. Please log in instead.</p>
+          <button
+            className="btn-accent"
+            onClick={() => {
+              setMode('in')
+              setExists(false)
+              setError(null)
+            }}
+          >
+            Go to log in →
+          </button>
+        </div>
+      )}
       {error && <p className="form-error">{error}</p>}
       {notice && <p className="muted small">{notice}</p>}
 

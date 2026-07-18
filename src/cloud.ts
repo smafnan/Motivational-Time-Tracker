@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
+import { Preferences } from '@capacitor/preferences'
 import { AppState, normalizeState } from './lib'
 
 /**
@@ -20,7 +22,70 @@ const key =
 
 export const cloudEnabled = Boolean(url && key)
 
-const supabase: SupabaseClient | null = cloudEnabled ? createClient(url!, key!) : null
+/** The deployed web app — where email links must land (a native webview
+ *  can't receive an https redirect, and file:// origins are meaningless). */
+const SITE_URL = 'https://productive-time-track.netlify.app'
+
+function redirectHome(): string {
+  if (Capacitor.isNativePlatform()) return SITE_URL
+  if (typeof location === 'undefined' || location.protocol === 'file:') return SITE_URL
+  return location.origin
+}
+
+/**
+ * Durable auth storage. Native webviews (Android/iOS) may evict
+ * localStorage under storage pressure, which silently logs users out.
+ * Reads prefer localStorage (fast) and fall back to Capacitor
+ * Preferences (SharedPreferences / UserDefaults); writes go to both.
+ * On the plain web this is just localStorage.
+ */
+const authStorage = {
+  async getItem(key: string): Promise<string | null> {
+    const local = localStorage.getItem(key)
+    if (local !== null || !Capacitor.isNativePlatform()) return local
+    try {
+      const { value } = await Preferences.get({ key })
+      if (value !== null) localStorage.setItem(key, value)
+      return value
+    } catch {
+      return null
+    }
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    localStorage.setItem(key, value)
+    if (Capacitor.isNativePlatform()) {
+      await Preferences.set({ key, value }).catch(() => {})
+    }
+  },
+  async removeItem(key: string): Promise<void> {
+    localStorage.removeItem(key)
+    if (Capacitor.isNativePlatform()) {
+      await Preferences.remove({ key }).catch(() => {})
+    }
+  },
+}
+
+const supabase: SupabaseClient | null = cloudEnabled
+  ? createClient(url!, key!, {
+      auth: {
+        storage: authStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null
+
+// Webview timers pause while the app is backgrounded, so a session can
+// expire before the refresh timer ever fires. Kick the refresher the
+// moment the app becomes visible again — it refreshes immediately if
+// the token is stale, preventing surprise logouts on mobile.
+if (supabase && typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void supabase.auth.startAutoRefresh()
+  })
+  window.addEventListener('focus', () => void supabase.auth.startAutoRefresh())
+}
 
 export type SyncStatus = 'off' | 'signed-out' | 'syncing' | 'synced' | 'error'
 
@@ -32,10 +97,27 @@ export async function signIn(email: string, password: string): Promise<string | 
   return error ? error.message : null
 }
 
-export async function signUp(email: string, password: string): Promise<string | null> {
-  if (!supabase) return 'Cloud sync is not configured.'
-  const { error } = await supabase.auth.signUp({ email, password })
-  return error ? error.message : null
+export type SignUpOutcome =
+  | { status: 'ok'; needsConfirm: boolean }
+  | { status: 'exists' }
+  | { status: 'error'; message: string }
+
+export async function signUp(email: string, password: string): Promise<SignUpOutcome> {
+  if (!supabase) return { status: 'error', message: 'Cloud sync is not configured.' }
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    // land verification clicks back in the app (never a blank tab)
+    options: { emailRedirectTo: `${redirectHome()}/?verified=1` },
+  })
+  if (error) {
+    if (/already (registered|exists)/i.test(error.message)) return { status: 'exists' }
+    return { status: 'error', message: error.message }
+  }
+  // With email confirmation enabled, Supabase obfuscates duplicate
+  // signups: instead of an error it returns a user with NO identities.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) return { status: 'exists' }
+  return { status: 'ok', needsConfirm: !data.session }
 }
 
 export async function signOut(): Promise<void> {
@@ -54,7 +136,7 @@ export async function signInWithProvider(
   if (!supabase) return 'Accounts are not available in this build.'
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: location.origin },
+    options: { redirectTo: redirectHome() },
   })
   return error ? error.message : null
 }
@@ -186,7 +268,7 @@ export async function sendMagicLink(email: string): Promise<string | null> {
   if (!supabase) return 'Accounts are not available in this build.'
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: location.origin },
+    options: { emailRedirectTo: redirectHome() },
   })
   return error ? error.message : null
 }
@@ -196,7 +278,7 @@ export async function sendMagicLink(email: string): Promise<string | null> {
 export async function sendPasswordReset(email: string): Promise<string | null> {
   if (!supabase) return 'Accounts are not available in this build.'
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: location.origin,
+    redirectTo: redirectHome(),
   })
   return error ? error.message : null
 }
