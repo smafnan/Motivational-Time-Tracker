@@ -137,7 +137,7 @@ bars and the compound curve, drawn on-device.
 - **Account deletion** built in; every table is locked with row-level security so only you
   can read your data
 
-<div align="center"><img src="docs/account-security.png" width="300" alt="Account security modal" /></div>
+<div align="center"><img src="docs/account-security.png" width="760" alt="Account security modal" /></div>
 
 </div>
 
